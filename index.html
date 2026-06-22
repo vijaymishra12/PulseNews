@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseNews — Premium Real-Time Global Coverage</title>
+  <meta name="description" content="Get the latest breaking global news, business indicators, technology trends, science reviews, and sports highlights on PulseNews. Built with NewsAPI.ai.">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- Header Section -->
+  <header>
+    <a href="#" class="logo" id="logo-btn">
+      <div class="logo-dot"></div>
+      <span>Pulse<span class="logo-accent">News</span></span>
+    </a>
+    
+    <div class="header-actions">
+      <!-- Search Input -->
+      <div class="search-bar">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="text" id="search-input" placeholder="Search news topics...">
+      </div>
+
+      <!-- Theme Switcher -->
+      <button class="icon-btn" id="theme-toggle-btn" aria-label="Toggle dark/light mode">
+        <!-- Moon Icon (for default dark mode) -->
+        <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <!-- Sun Icon (hidden by default) -->
+        <svg id="sun-icon" style="display: none;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-11.314l.707.707m12.02 11.314l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+        </svg>
+      </button>
+
+      <!-- Bookmark Toggle Drawer Button -->
+      <button class="icon-btn" id="bookmarks-toggle-btn" aria-label="Open saved articles">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
+        <span class="badge-count" id="bookmark-badge">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Live Ticker Bar -->
+  <div class="ticker-wrap">
+    <div class="ticker-title">Pulse Live</div>
+    <div class="ticker-content" id="live-ticker-list">
+      <!-- Generated via app.js -->
+      <div class="ticker-item"><span class="ticker-bullet"></span>Loading live ticker information...</div>
+    </div>
+  </div>
+
+  <!-- Category Nav -->
+  <div class="categories-nav-wrap">
+    <ul class="categories-nav" id="categories-list">
+      <li class="category-tab active" data-category="general">World News</li>
+      <li class="category-tab" data-category="news/Technology">Technology</li>
+      <li class="category-tab" data-category="news/Business">Business</li>
+      <li class="category-tab" data-category="news/Science">Science</li>
+      <li class="category-tab" data-category="news/Sports">Sports</li>
+      <li class="category-tab" data-category="news/Health">Health</li>
+      <li class="category-tab" data-category="news/Arts_and_Entertainment">Entertainment</li>
+      <li class="category-tab" data-category="news/Politics">Politics</li>
+    </ul>
+  </div>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Section Header (Controls) -->
+    <div class="section-header">
+      <h1 class="section-title" id="feed-heading">World News</h1>
+      <div>
+        <select class="sort-select" id="sort-by-select">
+          <option value="date">Latest Stories</option>
+          <option value="socialScore">Popular Stories</option>
+          <option value="relevance">Relevant Stories</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Skeletons Wrapper (shown while loading) -->
+    <div id="loading-skeletons" style="display: none;">
+      <!-- Hero Skeleton -->
+      <div class="hero-section" style="margin-bottom: 24px;">
+        <div class="hero-main-card skeleton" style="min-height: 480px;"></div>
+        <div class="trending-side skeleton" style="min-height: 480px;"></div>
+      </div>
+      <!-- Grid Skeleton -->
+      <div class="news-grid">
+        <div class="news-card skeleton" style="height: 420px;"></div>
+        <div class="news-card skeleton" style="height: 420px;"></div>
+        <div class="news-card skeleton" style="height: 420px;"></div>
+      </div>
+    </div>
+
+    <!-- Active Feed Container -->
+    <div id="feed-container">
+      <!-- Dynamic Hero section + Dynamic Cards Grid will be injected here -->
+    </div>
+
+    <!-- Load More Button -->
+    <div class="load-more-container">
+      <button class="btn-primary" id="load-more-btn">
+        <span>Load More Articles</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 18px; height: 18px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
+  </main>
+
+  <!-- Bookmarks Drawer Drawer -->
+  <div class="bookmarks-drawer" id="bookmarks-drawer">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 22px; height: 22px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
+        <span>Saved Coverage</span>
+      </div>
+      <button class="drawer-close" id="drawer-close-btn" aria-label="Close saved articles">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    
+    <div class="drawer-content" id="bookmarks-list">
+      <!-- Injected bookmarks -->
+      <div class="drawer-empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <p>No saved articles yet.<br>Save stories by clicking the bookmark icon on card corners.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Article View Modal -->
+  <div class="modal-overlay" id="article-modal">
+    <div class="modal-container">
+      <!-- Sticky close button -->
+      <div class="modal-header-actions">
+        <button class="modal-close-btn" id="modal-close-btn" aria-label="Close modal">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-scrollable">
+        <!-- Main Graphic Banner -->
+        <div class="modal-banner">
+          <img src="" id="modal-image" class="modal-banner-img" alt="Article banner">
+          <div class="modal-banner-overlay"></div>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-meta-row">
+            <span class="source-tag" id="modal-source">Source Name</span>
+            <span id="modal-date">Date & Time</span>
+            <span id="modal-author">Authors</span>
+          </div>
+
+          <h2 class="modal-title" id="modal-title">Title of the news coverage detailing the event and facts</h2>
+
+          <!-- Sentiment Meter -->
+          <div class="sentiment-meter" id="modal-sentiment-wrapper">
+            <span class="sentiment-label" id="modal-sentiment-text">Neutral Sentiment</span>
+            <div class="sentiment-meter-bar-wrap">
+              <div class="sentiment-meter-bar" id="modal-sentiment-bar" style="width: 50%;"></div>
+            </div>
+            <span class="sentiment-label" id="modal-sentiment-percent">0.0</span>
+          </div>
+
+          <!-- Body Text -->
+          <div class="modal-content-text" id="modal-body-text">
+            <!-- Loaded body -->
+          </div>
+
+          <!-- Action Footer inside Modal -->
+          <div class="modal-footer">
+            <div class="share-group">
+              <span class="share-label">Share article:</span>
+              
+              <!-- Twitter Share -->
+              <button class="share-btn" id="share-twitter" aria-label="Share on X">
+                <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </button>
+              
+              <!-- Copy Link -->
+              <button class="share-btn" id="share-copy-link" aria-label="Copy link to clipboard">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742a3 3 0 000 4.243L11.258 17.56a3 3 0 004.242 0l2.574-2.575a3 3 0 00-4.242-4.242L12.58 12.02M15.316 13.258a3 3 0 000-4.243l-2.573-2.574a3 3 0 00-4.243 0L5.926 9.016a3 3 0 004.243 4.242l1.242-1.242" />
+                </svg>
+              </button>
+              
+              <!-- Bookmark inside modal -->
+              <button class="share-btn" id="share-bookmark" aria-label="Bookmark article">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+              </button>
+            </div>
+            
+            <a href="#" target="_blank" class="btn-secondary" id="modal-full-coverage-btn">
+              <span>Read Full Coverage</span>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 16px; height: 16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Overlay -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div class="footer-top">
+        <a href="#" class="logo">
+          <div class="logo-dot"></div>
+          <span>Pulse<span class="logo-accent">News</span></span>
+        </a>
+        <p class="footer-tagline">Providing intelligent, sentiment-aware world news telemetry. Powered by the Event Registry analytics engine. Crafted with exceptional detail.</p>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 PulseNews Media Group. All rights reserved.</p>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Privacy Policy</a>
+          <a href="#" class="footer-link">Terms of Service</a>
+          <a href="#" class="footer-link">Developer API</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
