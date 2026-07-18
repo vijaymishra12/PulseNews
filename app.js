@@ -1,30 +1,31 @@
 /**
  * PulseNews Frontend Logic & API Integration
- * Connected to NewsAPI.ai (Event Registry) API
+ * Connected to NewsData.io API
  */
 
 // Configuration
-const API_KEY = '74ed4be7-676e-44be-8905-7d1c9c3f1635';
-const BASE_URL = 'https://eventregistry.org/api/v1/article/getArticles';
+const API_KEY = 'pub_3dcb69825feb483ca95e9f9c44878c7e';
+const BASE_URL = 'https://newsdata.io/api/1/latest';
 
 // Default Category Image Fallbacks (Unsplash)
 const CATEGORY_IMAGES = {
-  'general': 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80&auto=format&fit=crop',
-  'news/Technology': 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80&auto=format&fit=crop',
-  'news/Business': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80&auto=format&fit=crop',
-  'news/Science': 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80&auto=format&fit=crop',
-  'news/Sports': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80&auto=format&fit=crop',
-  'news/Health': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&q=80&auto=format&fit=crop',
-  'news/Arts_and_Entertainment': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80&auto=format&fit=crop',
-  'news/Politics': 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&q=80&auto=format&fit=crop'
+  'top': 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80&auto=format&fit=crop',
+  'technology': 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80&auto=format&fit=crop',
+  'business': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80&auto=format&fit=crop',
+  'science': 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&q=80&auto=format&fit=crop',
+  'sports': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=80&auto=format&fit=crop',
+  'health': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800&q=80&auto=format&fit=crop',
+  'entertainment': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80&auto=format&fit=crop',
+  'politics': 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&q=80&auto=format&fit=crop'
 };
 
 // Application State
 let state = {
-  category: 'general',
+  category: 'top',
   search: '',
   sort: 'date',
   page: 1,
+  nextPage: null,
   articles: [],
   bookmarks: [],
   theme: 'dark',
@@ -127,12 +128,12 @@ function updateBookmarkBadge() {
   DOM.bookmarkBadge.textContent = state.bookmarks.length;
 }
 
-function isBookmarked(uri) {
-  return state.bookmarks.some(article => article.uri === uri);
+function isBookmarked(articleId) {
+  return state.bookmarks.some(article => article.article_id === articleId);
 }
 
 function toggleBookmark(article) {
-  const index = state.bookmarks.findIndex(item => item.uri === article.uri);
+  const index = state.bookmarks.findIndex(item => item.article_id === article.article_id);
   if (index > -1) {
     state.bookmarks.splice(index, 1);
     showToast('Article removed from bookmarks', 'success');
@@ -167,9 +168,9 @@ function renderBookmarks() {
     const item = document.createElement('div');
     item.className = 'bookmark-item';
     
-    const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['general'];
-    const imageUrl = article.image || fallbackImg;
-    const sourceTitle = article.source ? article.source.title : 'Pulse News';
+    const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['top'];
+    const imageUrl = article.image_url || fallbackImg;
+    const sourceTitle = article.source_name || 'Pulse News';
     
     item.innerHTML = `
       <img src="${imageUrl}" class="bookmark-item-img" alt="${article.title}" onerror="this.src='${fallbackImg}'">
@@ -202,10 +203,10 @@ function renderBookmarks() {
 function updateCardBookmarkButtons() {
   const cards = DOM.feedContainer.querySelectorAll('.news-card, .hero-main-card');
   cards.forEach(card => {
-    const uri = card.dataset.uri;
+    const articleId = card.dataset.articleId;
     const btn = card.querySelector('.btn-bookmark-card');
     if (btn) {
-      if (isBookmarked(uri)) {
+      if (isBookmarked(articleId)) {
         btn.classList.add('bookmarked');
         btn.querySelector('svg').setAttribute('fill', 'currentColor');
       } else {
@@ -218,7 +219,7 @@ function updateCardBookmarkButtons() {
 
 function updateModalBookmarkButton() {
   if (state.activeArticle) {
-    if (isBookmarked(state.activeArticle.uri)) {
+    if (isBookmarked(state.activeArticle.article_id)) {
       DOM.shareBookmark.classList.add('bookmarked');
       DOM.shareBookmark.querySelector('svg').setAttribute('fill', 'currentColor');
       DOM.shareBookmark.querySelector('svg').style.color = 'var(--accent-color)';
@@ -239,10 +240,10 @@ function getCachedData() {
   const cached = sessionStorage.getItem(getCacheKey());
   if (cached) {
     try {
-      const { timestamp, data } = JSON.parse(cached);
+      const { timestamp, data, nextPage } = JSON.parse(cached);
       // Cache valid for 10 minutes
       if (Date.now() - timestamp < 10 * 60 * 1000) {
-        return data;
+        return { results: data, nextPage };
       }
     } catch (e) {
       return null;
@@ -251,23 +252,25 @@ function getCachedData() {
   return null;
 }
 
-function setCachedData(data) {
+function setCachedData(data, nextPage) {
   try {
     sessionStorage.setItem(getCacheKey(), JSON.stringify({
       timestamp: Date.now(),
-      data: data
+      data: data,
+      nextPage: nextPage
     }));
   } catch (e) {
     console.warn('Session storage quota exceeded. Cache skipped.', e);
   }
 }
 
-// Fetching Articles from newsapi.ai
+// Fetching Articles from NewsData.io
 async function fetchArticles(append = false) {
   if (append) {
     state.page += 1;
   } else {
     state.page = 1;
+    state.nextPage = null;
     DOM.feedContainer.innerHTML = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -275,39 +278,44 @@ async function fetchArticles(append = false) {
   // Check client-side cache
   const cachedResult = getCachedData();
   if (cachedResult) {
-    processApiResponse(cachedResult, append);
+    state.nextPage = cachedResult.nextPage;
+    processApiResponse(cachedResult.results, append);
     return;
   }
 
   showLoading(true);
 
-  // Setup request fields
-  const requestBody = {
-    action: 'getArticles',
-    apiKey: API_KEY,
-    articlesPage: state.page,
-    articlesCount: 15,
-    resultType: 'articles',
-    articlesSortBy: state.sort,
-    lang: 'eng'
-  };
+  // Build query parameters for NewsData.io GET request
+  const params = new URLSearchParams({
+    apikey: API_KEY,
+    language: 'en',
+    size: 10
+  });
 
-  // Add filters based on state
-  if (state.category !== 'general') {
-    requestBody.categoryUri = state.category;
+  // Add category filter
+  if (state.category && state.category !== 'top') {
+    params.set('category', state.category);
   }
+
+  // Add search keyword
   if (state.search.trim() !== '') {
-    requestBody.keyword = state.search.trim();
+    params.set('q', state.search.trim());
+  }
+
+  // Add pagination cursor for page 2+
+  if (append && state.nextPage) {
+    params.set('page', state.nextPage);
+  }
+
+  // Add sort preference via prioritydomain
+  if (state.sort === 'socialScore') {
+    params.set('prioritydomain', 'top');
+  } else if (state.sort === 'relevance' && state.search.trim() !== '') {
+    params.set('prioritydomain', 'top');
   }
 
   try {
-    const response = await fetch(BASE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
+    const response = await fetch(`${BASE_URL}?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(`HTTP Error: ${response.status}`);
@@ -315,20 +323,25 @@ async function fetchArticles(append = false) {
 
     const data = await response.json();
     
-    if (data.error) {
-      throw new Error(data.error);
+    if (data.status !== 'success') {
+      throw new Error(data.results?.message || 'API returned an error');
     }
 
-    if (data.articles && data.articles.results) {
-      setCachedData(data.articles.results);
-      processApiResponse(data.articles.results, append);
+    if (data.results && data.results.length > 0) {
+      state.nextPage = data.nextPage || null;
+      setCachedData(data.results, state.nextPage);
+      processApiResponse(data.results, append);
     } else {
-      showErrorState();
+      if (!append) {
+        showEmptyState();
+      }
     }
   } catch (error) {
     console.error('API Fetch Failure:', error);
     showToast(`Failed to fetch stories: ${error.message}`, 'error');
-    showErrorState();
+    if (!append) {
+      showErrorState();
+    }
   } finally {
     showLoading(false);
   }
@@ -350,12 +363,25 @@ function showLoading(isLoading) {
     DOM.loadMoreBtn.style.display = 'none';
   } else {
     DOM.loadingSkeletons.style.display = 'none';
-    if (state.articles.length > 0 && state.articles.length % 15 === 0) {
+    // Show load more button if there are more pages available
+    if (state.nextPage) {
       DOM.loadMoreBtn.style.display = 'flex';
     } else {
       DOM.loadMoreBtn.style.display = 'none';
     }
   }
+}
+
+function showEmptyState() {
+  DOM.feedContainer.innerHTML = `
+    <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 64px; height: 64px; opacity: 0.3; margin-bottom: 16px;">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <h3 style="font-family: var(--font-title); font-size: 1.3rem; margin-bottom: 8px; color: var(--text-primary);">No Results Found</h3>
+      <p>We couldn't find any coverage matching your filters or keywords.</p>
+    </div>
+  `;
 }
 
 function showErrorState() {
@@ -375,19 +401,11 @@ function showErrorState() {
 // Rendering Core UI
 function renderFeed(results, append) {
   if (!append && results.length === 0) {
-    DOM.feedContainer.innerHTML = `
-      <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-secondary);">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 64px; height: 64px; opacity: 0.3; margin-bottom: 16px;">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <h3 style="font-family: var(--font-title); font-size: 1.3rem; margin-bottom: 8px; color: var(--text-primary);">No Results Found</h3>
-        <p>We couldn't find any coverage matching your filters or keywords.</p>
-      </div>
-    `;
+    showEmptyState();
     return;
   }
 
-  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['general'];
+  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['top'];
 
   // If page 1 and not appending, we construct the split Hero highlight section + Cards Grid
   if (state.page === 1) {
@@ -404,14 +422,14 @@ function renderFeed(results, append) {
     heroSection.style.marginBottom = '32px';
 
     // RENDER HERO MAIN CARD
-    const heroImageUrl = heroArticle.image || fallbackImg;
-    const heroSource = heroArticle.source ? heroArticle.source.title : 'World News';
-    const heroTime = formatRelativeTime(heroArticle.dateTime);
+    const heroImageUrl = heroArticle.image_url || fallbackImg;
+    const heroSource = heroArticle.source_name || 'World News';
+    const heroTime = formatRelativeTime(heroArticle.pubDate);
     const sentimentObj = getSentimentProfile(heroArticle.sentiment);
     
     const heroCard = document.createElement('div');
     heroCard.className = 'hero-main-card';
-    heroCard.dataset.uri = heroArticle.uri;
+    heroCard.dataset.articleId = heroArticle.article_id;
     heroCard.innerHTML = `
       <div class="hero-img-wrap">
         <img src="${heroImageUrl}" class="hero-img" alt="${heroArticle.title}" onerror="this.src='${fallbackImg}'">
@@ -427,7 +445,7 @@ function renderFeed(results, append) {
           <span>${heroTime}</span>
         </div>
         <h2 class="hero-title">${heroArticle.title}</h2>
-        <p class="hero-desc">${heroArticle.body.substring(0, 180)}...</p>
+        <p class="hero-desc">${(heroArticle.description || '').substring(0, 180)}...</p>
         <div class="hero-footer">
           <div class="btn-read-more">
             <span>Open Coverage</span>
@@ -435,8 +453,8 @@ function renderFeed(results, append) {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </div>
-          <button class="btn-bookmark-card ${isBookmarked(heroArticle.uri) ? 'bookmarked' : ''}" aria-label="Bookmark article">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="${isBookmarked(heroArticle.uri) ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
+          <button class="btn-bookmark-card ${isBookmarked(heroArticle.article_id) ? 'bookmarked' : ''}" aria-label="Bookmark article">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="${isBookmarked(heroArticle.article_id) ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
           </button>
@@ -461,8 +479,8 @@ function renderFeed(results, append) {
     
     let trendingItemsHtml = '';
     trendingArticles.forEach((article, index) => {
-      const source = article.source ? article.source.title : 'Global';
-      const time = formatRelativeTime(article.dateTime);
+      const source = article.source_name || 'Global';
+      const time = formatRelativeTime(article.pubDate);
       trendingItemsHtml += `
         <div class="trending-item" data-index="${index}">
           <div class="trending-num">0${index + 1}</div>
@@ -520,18 +538,18 @@ function renderFeed(results, append) {
 }
 
 function renderGridCards(articles, gridContainer) {
-  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['general'];
+  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['top'];
 
   articles.forEach(article => {
-    const imageUrl = article.image || fallbackImg;
-    const sourceTitle = article.source ? article.source.title : 'Global News';
-    const relativeTime = formatRelativeTime(article.dateTime);
+    const imageUrl = article.image_url || fallbackImg;
+    const sourceTitle = article.source_name || 'Global News';
+    const relativeTime = formatRelativeTime(article.pubDate);
     const sentiment = getSentimentProfile(article.sentiment);
-    const bookmarked = isBookmarked(article.uri);
+    const bookmarked = isBookmarked(article.article_id);
 
     const card = document.createElement('div');
     card.className = 'news-card';
-    card.dataset.uri = article.uri;
+    card.dataset.articleId = article.article_id;
     
     card.innerHTML = `
       <div class="card-img-wrap">
@@ -547,7 +565,7 @@ function renderGridCards(articles, gridContainer) {
           <span>${relativeTime}</span>
         </div>
         <h3 class="card-title">${article.title}</h3>
-        <p class="card-desc">${article.body ? article.body.substring(0, 110) : ''}...</p>
+        <p class="card-desc">${article.description ? article.description.substring(0, 110) : ''}...</p>
         <div class="card-footer">
           <div class="btn-read-more" style="font-size: 0.8rem;">
             <span>Open Article</span>
@@ -581,53 +599,64 @@ function renderGridCards(articles, gridContainer) {
 function openArticleModal(article) {
   state.activeArticle = article;
   
-  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['general'];
-  DOM.modalImage.src = article.image || fallbackImg;
+  const fallbackImg = CATEGORY_IMAGES[state.category] || CATEGORY_IMAGES['top'];
+  DOM.modalImage.src = article.image_url || fallbackImg;
   DOM.modalImage.onerror = function() {
     this.src = fallbackImg;
   };
   
-  DOM.modalSource.textContent = article.source ? article.source.title : 'World Coverage';
-  DOM.modalDate.textContent = formatDateFull(article.dateTime || `${article.date}T${article.time}Z`);
+  DOM.modalSource.textContent = article.source_name || 'World Coverage';
+  DOM.modalDate.textContent = formatDateFull(article.pubDate);
   
   // Format Author list
-  if (article.authors && article.authors.length > 0) {
-    const authorNames = article.authors.map(a => a.name).join(', ');
-    DOM.modalAuthor.textContent = `By ${authorNames}`;
-    DOM.modalAuthor.style.display = 'inline';
+  if (article.creator && article.creator.length > 0) {
+    const authorNames = article.creator.filter(Boolean).join(', ');
+    if (authorNames) {
+      DOM.modalAuthor.textContent = `By ${authorNames}`;
+      DOM.modalAuthor.style.display = 'inline';
+    } else {
+      DOM.modalAuthor.style.display = 'none';
+    }
   } else {
     DOM.modalAuthor.style.display = 'none';
   }
 
   DOM.modalTitle.textContent = article.title;
   
-  // Format Sentiment meter
-  const sentiment = article.sentiment !== undefined ? article.sentiment : 0;
-  const sentimentProfile = getSentimentProfile(sentiment);
+  // Format Sentiment meter (NewsData.io returns string: "positive", "negative", "neutral")
+  const sentimentProfile = getSentimentProfile(article.sentiment);
   DOM.modalSentimentText.textContent = `${sentimentProfile.text} Sentiment`;
   DOM.modalSentimentText.style.color = `var(--sentiment-${sentimentProfile.class})`;
   DOM.modalSentimentBar.className = `sentiment-meter-bar`;
   DOM.modalSentimentBar.style.backgroundColor = `var(--sentiment-${sentimentProfile.class})`;
   
-  // Scale sentiment (-1 to 1) into percentage (0% to 100%)
-  const percentage = Math.round((sentiment + 1) * 50);
-  DOM.modalSentimentBar.style.width = `${percentage}%`;
-  DOM.modalSentimentPercent.textContent = sentiment > 0 ? `+${sentiment.toFixed(2)}` : sentiment.toFixed(2);
+  // Map sentiment string to percentage for the bar
+  const sentimentPercent = sentimentProfile.class === 'pos' ? 80 : sentimentProfile.class === 'neg' ? 20 : 50;
+  DOM.modalSentimentBar.style.width = `${sentimentPercent}%`;
+  
+  const sentimentScore = sentimentProfile.class === 'pos' ? '+0.60' : sentimentProfile.class === 'neg' ? '-0.60' : '0.00';
+  DOM.modalSentimentPercent.textContent = sentimentScore;
 
   // Format Article Content Body text
   let bodyContent = '';
-  if (article.body) {
-    const paragraphs = article.body.split('\n\n');
+  // Use content if available (paid plans), otherwise fall back to description
+  const articleText = article.content || article.description || '';
+  if (articleText) {
+    const paragraphs = articleText.split('\n\n');
     paragraphs.forEach(para => {
       if (para.trim()) {
         bodyContent += `<p>${para.trim()}</p>`;
       }
     });
+    // If no paragraph splits found, wrap entire text
+    if (!bodyContent && articleText.trim()) {
+      bodyContent = `<p>${articleText.trim()}</p>`;
+    }
   }
-  DOM.modalBodyText.innerHTML = bodyContent || '<p>Full content text is not available directly from listing summary.</p>';
+  DOM.modalBodyText.innerHTML = bodyContent || '<p>Full content text is not available on the free plan. Click "Read Full Coverage" below to read the complete article on the source website.</p>';
 
   // Link button
-  DOM.modalFullCoverageBtn.href = article.url;
+  DOM.modalFullCoverageBtn.href = article.link;
 
   updateModalBookmarkButton();
 
@@ -643,14 +672,16 @@ function closeArticleModal() {
 }
 
 // Helpers & Utilities
+
+// NewsData.io returns sentiment as a string ("positive", "negative", "neutral" or null)
 function getSentimentProfile(val) {
-  if (val === undefined || val === null) {
+  if (!val || val === 'neutral') {
     return { text: 'Neutral', class: 'neu' };
   }
-  if (val > 0.05) {
+  if (val === 'positive') {
     return { text: 'Positive', class: 'pos' };
   }
-  if (val < -0.05) {
+  if (val === 'negative') {
     return { text: 'Negative', class: 'neg' };
   }
   return { text: 'Neutral', class: 'neu' };
@@ -659,7 +690,8 @@ function getSentimentProfile(val) {
 function formatRelativeTime(dateTimeStr) {
   if (!dateTimeStr) return 'Recently';
   try {
-    const date = new Date(dateTimeStr);
+    // NewsData.io format: "2026-07-14 09:28:07"
+    const date = new Date(dateTimeStr.replace(' ', 'T') + 'Z');
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -678,7 +710,8 @@ function formatRelativeTime(dateTimeStr) {
 
 function formatDateFull(dateTimeStr) {
   try {
-    const date = new Date(dateTimeStr);
+    // NewsData.io format: "2026-07-14 09:28:07"
+    const date = new Date(dateTimeStr.replace(' ', 'T') + 'Z');
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 
@@ -765,8 +798,9 @@ function setupEventListeners() {
   // Navigation / Search Reset
   DOM.logoBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    state.category = 'general';
+    state.category = 'top';
     state.search = '';
+    state.nextPage = null;
     DOM.searchInput.value = '';
     DOM.feedHeading.textContent = 'World News';
     
@@ -793,6 +827,7 @@ function setupEventListeners() {
     state.category = tab.dataset.category;
     DOM.feedHeading.textContent = tab.textContent;
     state.search = ''; // Reset keyword search on tab switch
+    state.nextPage = null;
     DOM.searchInput.value = '';
 
     fetchArticles();
@@ -801,6 +836,7 @@ function setupEventListeners() {
   // Sort Option Switches
   DOM.sortBySelect.addEventListener('change', () => {
     state.sort = DOM.sortBySelect.value;
+    state.nextPage = null;
     fetchArticles();
   });
 
@@ -809,6 +845,7 @@ function setupEventListeners() {
     if (e.key === 'Enter') {
       const q = DOM.searchInput.value.trim();
       state.search = q;
+      state.nextPage = null;
       
       // Update heading text
       if (q) {
@@ -858,7 +895,7 @@ function setupEventListeners() {
   // Copy link widget
   DOM.shareCopyLink.addEventListener('click', () => {
     if (state.activeArticle) {
-      navigator.clipboard.writeText(state.activeArticle.url)
+      navigator.clipboard.writeText(state.activeArticle.link)
         .then(() => {
           showToast('Article URL copied to clipboard', 'success');
         })
@@ -871,7 +908,7 @@ function setupEventListeners() {
   // Share on X (Twitter)
   DOM.shareTwitter.addEventListener('click', () => {
     if (state.activeArticle) {
-      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(state.activeArticle.title)}&url=${encodeURIComponent(state.activeArticle.url)}&via=PulseNews`;
+      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(state.activeArticle.title)}&url=${encodeURIComponent(state.activeArticle.link)}&via=PulseNews`;
       window.open(shareUrl, '_blank', 'width=550,height=420');
     }
   });
